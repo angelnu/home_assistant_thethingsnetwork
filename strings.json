@@ -1,0 +1,64 @@
+{
+    "config": {
+      "step": {
+        "user": {
+          "title": "Connect to The Thinks Network App",
+          "description": "Enter the app id and access key for your TTN application.\n You can find your access key in the TTN console -> Applications -> application_id (see bottom -> access keys)",
+          "data": {
+            "app_id": "Application ID",
+            "access_key": "Access Key"
+          }
+        }
+      },
+      "abort": {
+        "already_configured": "[%key:common::config_flow::abort::already_configured_device%]"
+      },
+      "error": {
+        "forbidden": "[%key:common::config_flow::error::invalid_auth%]",
+        "device_timeout": "[%key:common::config_flow::error::cannot_connect%]"
+      }
+    },
+    "options": {
+      "step": {
+        "init": {
+          "title": "Select edit menu",
+          "data": {
+            "selected_menu": "What do you want to edit?"
+          }
+        },
+        "device_select": {
+          "title": "Device selection",
+          "data": {
+            "selected_device": "Select a device"
+          }
+        },
+        "device_edit": {
+          "title": "Edit device",
+          "description": "Device: {selected_device}",
+          "data": {
+            "device_friendly_name": "Device friendly name"
+          }
+        },
+
+        "field_select": {
+          "title": "Field selection",
+          "data": {
+            "selected_device": "Select a field"
+          }
+        },
+        "field_edit": {
+          "title": "Edit field",
+          "description": "Field: {selected_field}",
+          "data": {
+            "field_device_scope": "Scope for field (device or global)",
+            "field_friendly_name": "Field friendly name",
+            "unit_of_measurement": "Unit of measurement"
+          }
+        }
+      },
+      "abort": {
+        "no_devices": "No devices available to configure",
+        "no_fields": "No fields available to configure"
+      }
+    }
+  }
