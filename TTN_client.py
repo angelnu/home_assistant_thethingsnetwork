@@ -2,8 +2,19 @@ from homeassistant.helpers.typing import HomeAssistantType
 from homeassistant.helpers.entity import Entity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers import device_registry as dr
+from homeassistant.const import CONTENT_TYPE_JSON, HTTP_NOT_FOUND
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.update_coordinator import (
+    CoordinatorEntity,
+    DataUpdateCoordinator,
+    UpdateFailed,
+)
 
 import asyncio
+import aiohttp
+import async_timeout
+from datetime import timedelta
+from aiohttp.hdrs import ACCEPT, AUTHORIZATION
 
 from . import LOGGER
 from .const import *
@@ -81,6 +92,7 @@ class TTN_client:
 
         self.__entities = {}
         self.__is_connected = False
+        self.__first_fetch = True
 
         #Register for entry update
         self.__update_listener_handler = entry.add_update_listener(TTN_client.__update_listener)
@@ -92,14 +104,52 @@ class TTN_client:
     async def connect(self):
         #TBD connected
 
-        # Discover entities
-        #TBD True discovery
-        entities = [ TtnDataSensor(self, "dummy_1", "temp"),
-                    TtnDataSensor(self, "dummy_1", "distance")
-        ]
-        self.add_entities(entities)
+        async def fetch_data_from_ttn():
+            await self.fetch_data_from_ttn()
+
+        coordinator = DataUpdateCoordinator(
+            self.__hass,
+            LOGGER,
+            # Name of the data. For logging purposes.
+            name="The Things Network",
+            update_method=fetch_data_from_ttn,
+            # Polling interval. Will only be polled if there are subscribers.
+            update_interval=timedelta(seconds=API_REFRESH_PERIOD_S),
+        )
+
+        # Fetch initial data so we have data when entities subscribe
+        await coordinator.async_refresh()
 
         self.__is_connected = True
+
+    async def fetch_data_from_ttn(self):
+
+        if self.__first_fetch :
+            self.__first_fetch = False
+            fetch_last = API_FIRST_FETCH_LAST
+        else:
+            fetch_last = f"{API_REFRESH_PERIOD_S+60}s"
+
+        # Discover entities
+        entities = []
+        for device_id in await self.storage_api_call("api/v2/devices"):
+            device = await self.storage_api_call(f"api/v2/query/{device_id}?last={fetch_last}")
+            if not device:
+                continue
+            device = device[-1]
+            for (field_id, value) in device.items():
+
+                unique_id = TtnDataSensor(self, device_id, field_id, value)
+                if TtnDataSensor.get_unique_id(device_id, field_id) not in self.__entities:
+                    if not value:
+                        continue
+                    entities.append(unique_id)
+                else:
+                    devices[unique_id].state = value
+
+
+        self.add_entities(entities)
+
 
 
 
@@ -151,22 +201,51 @@ class TTN_client:
                 unload_ok = await entitiy.async_remove() and unload_ok
         return unload_ok
 
+    async def storage_api_call(self, endpoint):
+
+        url = TTN_DATA_STORAGE_URL.format(app_id=self.__application_id, endpoint=endpoint)
+        headers = {ACCEPT: CONTENT_TYPE_JSON, AUTHORIZATION: f"key {self.__access_key}"}
+
+        try:
+            session = async_get_clientsession(self.__hass)
+            with async_timeout.timeout(DEFAULT_TIMEOUT):
+                response = await session.get(url, headers=headers)
+
+        except (asyncio.TimeoutError, aiohttp.ClientError):
+            _LOGGER.error("Error while accessing: %s", url)
+            return None
+
+        status = response.status
+
+        if status == 401:
+            _LOGGER.error("Not authorized for Application ID: %s", app_id)
+            return None
+
+        if status == HTTP_NOT_FOUND:
+            _LOGGER.error("Application ID is not available: %s", app_id)
+            return None
+
+        return await response.json()
 
 
 
 class TtnDataSensor(Entity):
     """Representation of a The Things Network Data Storage sensor."""
 
+    @staticmethod
+    def get_unique_id(device_id, field_id):
+        return f"{device_id}-{field_id}"
+
     def __init__(
-        self, client:TTN_client, device_id, field_id
+        self, client:TTN_client, device_id, field_id, state=None
     ):
         """Initialize a The Things Network Data Storage sensor."""
         self.__client = client
         self.__device_id = device_id
         self.__field_id = field_id
+        self.__state = state
 
-        self.__unique_id = f"{self.__device_id}-{self.__field_id}"
-        self.__state = None
+        self.__unique_id = self.get_unique_id(self.__device_id, self.__field_id)
         self.__unit_of_measurement = None
         self.to_be_added = True
         self.to_be_removed = False
@@ -211,12 +290,11 @@ class TtnDataSensor(Entity):
     @property
     def state(self):
         """Return the state of the entity."""
-        # if self._ttn_data_storage.data is not None:
-        #     try:
-        #         return round(self._state[self._value], 1)
-        #     except (KeyError, TypeError):
-        #         return None
         return self.__state
+
+    @state.setter
+    def state(self, value):
+        self.__state = value
 
     @property
     def unit_of_measurement(self):
