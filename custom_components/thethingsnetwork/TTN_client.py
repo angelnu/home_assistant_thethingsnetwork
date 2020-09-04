@@ -147,7 +147,7 @@ class TTN_client:
             #Get and delete device_id from measurement
             device_id = measurement["device_id"]
             del measurement["device_id"]
-            for (field_id, value) in measurement.items():
+            for (field_id, value) in reversed(measurement.items()):
 
                 unique_id = TtnDataSensor.get_unique_id(device_id, field_id)
                 if unique_id not in self.__entities:
@@ -155,12 +155,11 @@ class TTN_client:
                         if not value:
                             continue
                         #Create
-                        #print(f"Create {unique_id}")
                         new_entities[unique_id] = TtnDataSensor(self, device_id, field_id, value)
                     else:
-                        #print(f"update 1 {unique_id}")
-                        #Update value in just discovered entitity
-                        await new_entities[unique_id].async_set_state(value)
+                        #Ignore multiple measurements - we use latest
+                        #This is why we loop in reverse orderr
+                        pass
                 else:
                     #print(f"update 2 {unique_id}")
                     #Update value in existing entitity
@@ -321,7 +320,7 @@ class TtnDataSensor(Entity):
 
     async def async_set_state(self, value):
         self.__state = value
-        #await self.async_update_entity()
+        await self.async_update_ha_state()
 
     @property
     def unit_of_measurement(self):
@@ -364,7 +363,7 @@ class TtnDataSensor(Entity):
     async def refresh_options(self):
         self.__refresh_names()
 
-        #await self.async_update_ha_state()
+        await self.async_update_ha_state()
 
         device_registry = await dr.async_get_registry(self.__client.hass)
         device_registry.async_get_or_create(
