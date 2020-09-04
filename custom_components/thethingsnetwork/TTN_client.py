@@ -56,13 +56,13 @@ class TTN_client:
         ids = []
         for entitiy in self.__entities.values():
             ids.append(entitiy.device_id)
-        return list(set(ids)).sort()
+        return list(set(ids)).sort().sort()
 
     def get_field_ids(self):
         ids = []
         for entitiy in self.__entities.values():
             ids.append(entitiy.field_id)
-        return list(set(ids)).sort()
+        return list(set(ids)).sort().sort()
 
     def get_options(self):
         return self.__entry.options
@@ -89,6 +89,7 @@ class TTN_client:
         self.__entities = {}
         self.__is_connected = False
         self.__first_fetch = True
+        self.__async_add_sensor_entities = None
 
         #Register for entry update
         self.__update_listener_handler = entry.add_update_listener(TTN_client.__update_listener)
@@ -100,10 +101,16 @@ class TTN_client:
     async def connect(self):
         #TBD connected
 
-        async def fetch_data_from_ttn():
-            await self.fetch_data_from_ttn()
+        #Init components
+        for component in COMPONENT_TYPES:
+            self.__hass.async_add_job(
+                self.__hass.config_entries.async_forward_entry_setup(self.__entry, component)
+            )
 
-        coordinator = DataUpdateCoordinator(
+        async def fetch_data_from_ttn():
+            await self.__fetch_data_from_ttn()
+
+        self.__coordinator = DataUpdateCoordinator(
             self.__hass,
             LOGGER,
             # Name of the data. For logging purposes.
@@ -113,12 +120,17 @@ class TTN_client:
             update_interval=timedelta(seconds=API_REFRESH_PERIOD_S),
         )
 
+        # Add dummy listener -> might change later to use it...
+        def coordinator_update():
+            pass
+        self.__coordinator.async_add_listener(coordinator_update)
+
         # Fetch initial data so we have data when entities subscribe
-        await coordinator.async_refresh()
+        await self.__coordinator.async_refresh()
 
         self.__is_connected = True
 
-    async def fetch_data_from_ttn(self):
+    async def __fetch_data_from_ttn(self):
 
         if self.__first_fetch :
             self.__first_fetch = False
@@ -127,24 +139,35 @@ class TTN_client:
             fetch_last = f"{API_REFRESH_PERIOD_S+60}s"
 
         # Discover entities
-        entities = []
-        for device_id in await self.storage_api_call("api/v2/devices"):
-            device = await self.storage_api_call(f"api/v2/query/{device_id}?last={fetch_last}")
-            if not device:
-                continue
-            device = device[-1]
-            for (field_id, value) in device.items():
+        new_entities = {}
+        measurements = await self.storage_api_call(f"api/v2/query?last={fetch_last}")
+        if not measurements:
+            measurements = []
+        for measurement in measurements:
+            #Get and delete device_id from measurement
+            device_id = measurement["device_id"]
+            del measurement["device_id"]
+            for (field_id, value) in measurement.items():
 
-                unique_id = TtnDataSensor(self, device_id, field_id, value)
-                if TtnDataSensor.get_unique_id(device_id, field_id) not in self.__entities:
-                    if not value:
-                        continue
-                    entities.append(unique_id)
+                unique_id = TtnDataSensor.get_unique_id(device_id, field_id)
+                if unique_id not in self.__entities:
+                    if unique_id not in new_entities:
+                        if not value:
+                            continue
+                        #Create
+                        #print(f"Create {unique_id}")
+                        new_entities[unique_id] = TtnDataSensor(self, device_id, field_id, value)
+                    else:
+                        #print(f"update 1 {unique_id}")
+                        #Update value in just discovered entitity
+                        await new_entities[unique_id].async_set_state(value)
                 else:
-                    devices[unique_id].state = value
+                    #print(f"update 2 {unique_id}")
+                    #Update value in existing entitity
+                    await self.__entities[unique_id].async_set_state(value)
 
 
-        self.add_entities(entities)
+        self.add_entities(new_entities.values())
 
 
 
@@ -166,23 +189,29 @@ class TTN_client:
         self.__is_connected = False
 
     def add_entities(self, entities=[]):
+
         for entity in entities:
             assert (entity.unique_id not in self.__entities)
             self.__entities[entity.unique_id] = entity
 
-        """ Add entities to platforms """
-        for component in COMPONENT_TYPES:
-            self.__hass.async_add_job(
-                self.__hass.config_entries.async_forward_entry_setup(self.__entry, component)
-            )
+        self.add_sensors()
 
-    def add_sensors(self, async_add_entities):
+    def add_sensors(self, async_add_entities = None):
+        if async_add_entities:
+            #Remember handling for dynamic adds later
+            self.__async_add_sensor_entities = async_add_entities
+            return #DEBUG
+        if not self.__async_add_sensor_entities:
+            #Not ready yet - wait for component setup to complete
+            return
+
         to_be_added = []
         for entity in self.__entities.values():
             if entity.to_be_added:
                 to_be_added.append(entity)
                 entity.to_be_added = False
-        async_add_entities(to_be_added, True)
+
+        self.__async_add_sensor_entities(to_be_added, True)
 
     async def remove_all_entities(self):
         for entity in self.__entities.values():
@@ -214,14 +243,16 @@ class TTN_client:
         status = response.status
 
         if status == 401:
-            _LOGGER.error("Not authorized for Application ID: %s", app_id)
+            LOGGER.error("Not authorized for Application ID: %s", self.__application_id)
             return None
 
         if status == HTTP_NOT_FOUND:
-            _LOGGER.error("Application ID is not available: %s", app_id)
+            LOGGER.error("Application ID is not available: %s", self.__application_id)
             return None
 
         return await response.json()
+
+
 
 
 
@@ -288,9 +319,9 @@ class TtnDataSensor(Entity):
         """Return the state of the entity."""
         return self.__state
 
-    @state.setter
-    def state(self, value):
+    async def async_set_state(self, value):
         self.__state = value
+        #await self.async_update_entity()
 
     @property
     def unit_of_measurement(self):
@@ -333,7 +364,7 @@ class TtnDataSensor(Entity):
     async def refresh_options(self):
         self.__refresh_names()
 
-        await self.async_update_ha_state()
+        #await self.async_update_ha_state()
 
         device_registry = await dr.async_get_registry(self.__client.hass)
         device_registry.async_get_or_create(

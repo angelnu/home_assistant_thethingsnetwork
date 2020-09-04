@@ -4,3 +4,4 @@ __pycache__
 *.log
 .storage/
 .HA_VERSION
+sensor viejo.py
