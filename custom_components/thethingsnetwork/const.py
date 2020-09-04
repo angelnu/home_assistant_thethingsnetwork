@@ -9,7 +9,7 @@ CONF_FOUND_DEVICES = "devices"
 DOMAIN = "thethingsnetwork"
 
 DEFAULT_TIMEOUT = 10
-API_REFRESH_PERIOD_S = 1*30
+API_REFRESH_PERIOD_S = 5*60
 API_FIRST_FETCH_LAST = "1d"
 
 TTN_DATA_STORAGE_URL = "https://{app_id}.data.thethingsnetwork.org/{endpoint}"
