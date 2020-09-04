@@ -240,7 +240,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
         # Get options
         name = field_options.setdefault(OPTIONS_FIELD_NAME, self.selected_field)
         unit_of_measurement = field_options.setdefault(
-            OPTIONS_FIELD_UNIT_MEASUREMENT, "C"
+            OPTIONS_FIELD_UNIT_MEASUREMENT, ""
         )
         device_scope = field_options.setdefault(
             OPTIONS_FIELD_DEVICE_SCOPE, OPTIONS_FIELD_DEVICE_SCOPE_GLOBAL
