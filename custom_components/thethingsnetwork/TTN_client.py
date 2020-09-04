@@ -268,7 +268,7 @@ class TtnDataSensor(Entity):
 
     @staticmethod
     def get_unique_id(device_id, field_id):
-        return f"{device_id}-{field_id}"
+        return f"{device_id}_{field_id}"
 
     def __init__(self, client: TTN_client, device_id, field_id, state=None):
         """Initialize a The Things Network Data Storage sensor."""
