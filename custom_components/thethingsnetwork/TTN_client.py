@@ -15,8 +15,10 @@ from aiohttp.hdrs import ACCEPT, AUTHORIZATION
 from . import LOGGER
 from .const import *
 
+
 class TTN_client:
     __instances = {}
+
     @staticmethod
     def createInstance(hass: HomeAssistantType, entry: ConfigEntry):
         """ Static access method. """
@@ -51,7 +53,6 @@ class TTN_client:
 
         return unload_ok
 
-
     def get_device_ids(self):
         ids = []
         for entitiy in self.__entities.values():
@@ -67,6 +68,11 @@ class TTN_client:
     def get_options(self):
         return self.__entry.options
 
+    def get_refresh_period_s(self):
+        integration_settings = self.get_options().get(OPTIONS_MENU_EDIT_INTEGRATION, {})
+        return integration_settings.get(
+            OPTIONS_MENU_INTEGRATION_REFRESH_TIME_S, DEFAULT_API_REFRESH_PERIOD_S
+        )
 
     @property
     def hass(self):
@@ -76,7 +82,6 @@ class TTN_client:
     def entry(self):
         return self.__entry
 
-
     def __init__(self, hass, entry):
 
         self.__entry = entry
@@ -85,31 +90,35 @@ class TTN_client:
         self.__access_key = entry.data[CONF_ACCESS_KEY]
         LOGGER.debug(f"Creating TTN_client with application_id {self.__application_id}")
 
-
         self.__entities = {}
         self.__is_connected = False
         self.__first_fetch = True
+        self.__coordinator = None
         self.__async_add_sensor_entities = None
 
-        #Register for entry update
-        self.__update_listener_handler = entry.add_update_listener(TTN_client.__update_listener)
+        # Register for entry update
+        self.__update_listener_handler = entry.add_update_listener(
+            TTN_client.__update_listener
+        )
 
     def __del__(self):
         self.__disconnect()
 
-
     async def connect(self):
-        #TBD connected
+        # TBD connected
 
-        #Init components
+        # Init components
         for component in COMPONENT_TYPES:
             self.__hass.async_add_job(
-                self.__hass.config_entries.async_forward_entry_setup(self.__entry, component)
+                self.__hass.config_entries.async_forward_entry_setup(
+                    self.__entry, component
+                )
             )
 
         async def fetch_data_from_ttn():
             await self.__fetch_data_from_ttn()
 
+        # Init global settings
         self.__coordinator = DataUpdateCoordinator(
             self.__hass,
             LOGGER,
@@ -117,12 +126,13 @@ class TTN_client:
             name="The Things Network",
             update_method=fetch_data_from_ttn,
             # Polling interval. Will only be polled if there are subscribers.
-            update_interval=timedelta(seconds=API_REFRESH_PERIOD_S),
+            update_interval=timedelta(seconds=self.get_refresh_period_s()),
         )
 
         # Add dummy listener -> might change later to use it...
         def coordinator_update():
             pass
+
         self.__coordinator.async_add_listener(coordinator_update)
 
         # Fetch initial data so we have data when entities subscribe
@@ -132,11 +142,12 @@ class TTN_client:
 
     async def __fetch_data_from_ttn(self):
 
-        if self.__first_fetch :
+        if self.__first_fetch:
             self.__first_fetch = False
             fetch_last = API_FIRST_FETCH_LAST
         else:
-            fetch_last = f"{API_REFRESH_PERIOD_S+60}s"
+            #Fetch new measurements since last time (with an extra minute margin)
+            fetch_last = f"{self.get_refresh_period_s()+60}s"
 
         # Discover entities
         new_entities = {}
@@ -144,7 +155,7 @@ class TTN_client:
         if not measurements:
             measurements = []
         for measurement in measurements:
-            #Get and delete device_id from measurement
+            # Get and delete device_id from measurement
             device_id = measurement["device_id"]
             del measurement["device_id"]
             for (field_id, value) in reversed(measurement.items()):
@@ -154,54 +165,52 @@ class TTN_client:
                     if unique_id not in new_entities:
                         if not value:
                             continue
-                        #Create
-                        new_entities[unique_id] = TtnDataSensor(self, device_id, field_id, value)
+                        # Create
+                        new_entities[unique_id] = TtnDataSensor(
+                            self, device_id, field_id, value
+                        )
                     else:
-                        #Ignore multiple measurements - we use latest
-                        #This is why we loop in reverse orderr
+                        # Ignore multiple measurements - we use latest
+                        # This is why we loop in reverse orderr
                         pass
                 else:
-                    #print(f"update 2 {unique_id}")
-                    #Update value in existing entitity
+                    # Update value in existing entitity
                     await self.__entities[unique_id].async_set_state(value)
-
 
         self.add_entities(new_entities.values())
 
-
-
-
     @staticmethod
     async def __update_listener(hass, entry):
-        print(entry)
         return await TTN_client.getInstance(entry).__update(hass, entry)
 
     async def __update(self, hass, entry):
         self.__hass = hass
         self.__entry = entry
-        LOGGER.debug(f"BBBB data: {entry.data} options: {entry.options}")
+
+        if self.__coordinator:
+            self.__coordinator.update_interval = timedelta(seconds=self.get_refresh_period_s())
+
         for entitiy in self.__entities.values():
             await entitiy.refresh_options()
 
     def __disconnect(self):
-        #TBD
+        # TBD
         self.__is_connected = False
 
     def add_entities(self, entities=[]):
 
         for entity in entities:
-            assert (entity.unique_id not in self.__entities)
+            assert entity.unique_id not in self.__entities
             self.__entities[entity.unique_id] = entity
 
         self.add_sensors()
 
-    def add_sensors(self, async_add_entities = None):
+    def add_sensors(self, async_add_entities=None):
         if async_add_entities:
-            #Remember handling for dynamic adds later
+            # Remember handling for dynamic adds later
             self.__async_add_sensor_entities = async_add_entities
-            return #DEBUG
         if not self.__async_add_sensor_entities:
-            #Not ready yet - wait for component setup to complete
+            # Not ready yet - wait for component setup to complete
             return
 
         to_be_added = []
@@ -227,7 +236,9 @@ class TTN_client:
 
     async def storage_api_call(self, endpoint):
 
-        url = TTN_DATA_STORAGE_URL.format(app_id=self.__application_id, endpoint=endpoint)
+        url = TTN_DATA_STORAGE_URL.format(
+            app_id=self.__application_id, endpoint=endpoint
+        )
         headers = {ACCEPT: CONTENT_TYPE_JSON, AUTHORIZATION: f"key {self.__access_key}"}
 
         try:
@@ -236,7 +247,7 @@ class TTN_client:
                 response = await session.get(url, headers=headers)
 
         except (asyncio.TimeoutError, aiohttp.ClientError):
-            _LOGGER.error("Error while accessing: %s", url)
+            LOGGER.error("Error while accessing: %s", url)
             return None
 
         status = response.status
@@ -252,9 +263,6 @@ class TTN_client:
         return await response.json()
 
 
-
-
-
 class TtnDataSensor(Entity):
     """Representation of a The Things Network Data Storage sensor."""
 
@@ -262,9 +270,7 @@ class TtnDataSensor(Entity):
     def get_unique_id(device_id, field_id):
         return f"{device_id}-{field_id}"
 
-    def __init__(
-        self, client:TTN_client, device_id, field_id, state=None
-    ):
+    def __init__(self, client: TTN_client, device_id, field_id, state=None):
         """Initialize a The Things Network Data Storage sensor."""
         self.__client = client
         self.__device_id = device_id
@@ -330,14 +336,14 @@ class TtnDataSensor(Entity):
     @property
     def entitiy_state_attributes(self):
         """Return the state attributes of the sensor."""
-        #if self._ttn_data_storage.data is not None:
+        # if self._ttn_data_storage.data is not None:
         return {
             ATTR_entitiy_ID: self.__entitiy_id,
-            #ATTR_RAW: self._state["raw"],
-            #ATTR_TIME: self._state["time"],
+            # ATTR_RAW: self._state["raw"],
+            # ATTR_TIME: self._state["time"],
         }
 
-    #async def async_update(self):
+    # async def async_update(self):
     #    """Get the current state."""
     #    await self._ttn_data_storage.async_update()
     #    self._state = self._ttn_data_storage.data
@@ -347,18 +353,20 @@ class TtnDataSensor(Entity):
         field_name = self.__field_id
         options = self.__client.get_options()
 
-        devices = options.get(OPTIONS_CONFIG_DEVICES, {})
+        devices = options.get(OPTIONS_MENU_EDIT_DEVICES, {})
         if self.__device_id in devices:
-            device_name                = devices[self.__device_id][OPTIONS_CONFIG_DEVICE_ALIAS]
+            device_name = devices[self.__device_id][OPTIONS_DEVICE_NAME]
 
-        fields = options.get(OPTIONS_CONFIG_FIELDS, {})
+        fields = options.get(OPTIONS_DEVICE_NAME, {})
         if self.__field_id in fields:
-            field_name                 = fields[self.__field_id][OPTIONS_CONFIG_FIELD_ALIAS]
-            self.__unit_of_measurement = fields[self.__field_id][OPTIONS_CONFIG_FIELD_UNIT_MEASUREMENT]
+            field_name = fields[self.__field_id][OPTIONS_FIELD_NAME]
+            self.__unit_of_measurement = fields[self.__field_id][
+                OPTIONS_FIELD_UNIT_MEASUREMENT
+            ]
 
         self.__device_name = device_name
         self.__field_name = field_name
-        self.__name      = f"{device_name} {field_name}"
+        self.__name = f"{device_name} {field_name}"
 
     async def refresh_options(self):
         self.__refresh_names()
@@ -367,6 +375,5 @@ class TtnDataSensor(Entity):
 
         device_registry = await dr.async_get_registry(self.__client.hass)
         device_registry.async_get_or_create(
-            config_entry_id=self.__client.entry.entry_id,
-            **self.device_info
+            config_entry_id=self.__client.entry.entry_id, **self.device_info
         )
