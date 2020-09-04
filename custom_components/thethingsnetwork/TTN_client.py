@@ -355,14 +355,12 @@ class TtnDataSensor(Entity):
 
         devices = options.get(OPTIONS_MENU_EDIT_DEVICES, {})
         if self.__device_id in devices:
-            device_name = devices[self.__device_id][OPTIONS_DEVICE_NAME]
+            device_name                = devices[self.__device_id].get(OPTIONS_DEVICE_NAME,          device_name)
 
         fields = options.get(OPTIONS_DEVICE_NAME, {})
         if self.__field_id in fields:
-            field_name = fields[self.__field_id][OPTIONS_FIELD_NAME]
-            self.__unit_of_measurement = fields[self.__field_id][
-                OPTIONS_FIELD_UNIT_MEASUREMENT
-            ]
+            field_name                 = fields[self.__field_id].get(OPTIONS_FIELD_NAME,             field_name)
+            self.__unit_of_measurement = fields[self.__field_id].get(OPTIONS_FIELD_UNIT_MEASUREMENT, "")
 
         self.__device_name = device_name
         self.__field_name = field_name
