@@ -57,13 +57,13 @@ class TTN_client:
         ids = []
         for entitiy in self.__entities.values():
             ids.append(entitiy.device_id)
-        return list(set(ids)).sort().sort()
+        return list(set(ids)).sorted()
 
     def get_field_ids(self):
         ids = []
         for entitiy in self.__entities.values():
             ids.append(entitiy.field_id)
-        return list(set(ids)).sort().sort()
+        return list(set(ids)).sorted()
 
     def get_options(self):
         return self.__entry.options
