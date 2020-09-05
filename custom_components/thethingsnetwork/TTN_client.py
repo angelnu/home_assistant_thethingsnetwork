@@ -2,15 +2,25 @@ from homeassistant.helpers.typing import HomeAssistantType
 from homeassistant.helpers.entity import Entity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers import device_registry as dr
-from homeassistant.const import CONTENT_TYPE_JSON, HTTP_NOT_FOUND
+from homeassistant.const import (
+    CONTENT_TYPE_JSON,
+    HTTP_NOT_FOUND,
+    ATTR_GPS_ACCURACY,
+    ATTR_LATITUDE,
+    ATTR_LONGITUDE,
+    STATE_HOME,
+    STATE_NOT_HOME,
+)
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
+from homeassistant.components import zone
 
 import asyncio
 import aiohttp
 import async_timeout
 from datetime import timedelta
 from aiohttp.hdrs import ACCEPT, AUTHORIZATION
+import re
 
 from . import LOGGER
 from .const import *
@@ -95,6 +105,7 @@ class TTN_client:
         self.__first_fetch = True
         self.__coordinator = None
         self.__async_add_sensor_entities = None
+        self.__async_add_device_tracker_entities = None
 
         # Register for entry update
         self.__update_listener_handler = entry.add_update_listener(
@@ -149,6 +160,8 @@ class TTN_client:
             #Fetch new measurements since last time (with an extra minute margin)
             fetch_last = f"{self.get_refresh_period_s()+60}s"
 
+        map_value_re = re.compile('(\w+):(-?[\.\w]+)')
+
         # Discover entities
         new_entities = {}
         measurements = await self.storage_api_call(f"api/v2/query?last={fetch_last}")
@@ -160,24 +173,49 @@ class TTN_client:
             del measurement["device_id"]
             for (field_id, value) in reversed(measurement.items()):
 
-                unique_id = TtnDataSensor.get_unique_id(device_id, field_id)
-                if unique_id not in self.__entities:
-                    if unique_id not in new_entities:
-                        if not value:
-                            continue
-                        # Create
-                        new_entities[unique_id] = TtnDataSensor(
-                            self, device_id, field_id, value
-                        )
+                async def process(field_id, value):
+                    unique_id = TtnDataSensor.get_unique_id(device_id, field_id)
+                    if unique_id not in self.__entities:
+                        if unique_id not in new_entities:
+                            if not value:
+                                pass
+                            # Create
+                            elif type(value) == dict:
+                                # GPS
+                                print("BBBBBIEN")
+                                new_entities[unique_id] = TtnDataDeviceTracker(
+                                    self, device_id, field_id, value
+                                )
+                            else:
+                                # Sensor
+                                new_entities[unique_id] = TtnDataSensor(
+                                    self, device_id, field_id, value
+                                )
+                        else:
+                            # Ignore multiple measurements - we use latest
+                            # This is why we loop in reverse orderr
+                            pass
                     else:
-                        # Ignore multiple measurements - we use latest
-                        # This is why we loop in reverse orderr
-                        pass
-                else:
-                    # Update value in existing entitity
-                    await self.__entities[unique_id].async_set_state(value)
+                        # Update value in existing entitity
+                        await self.__entities[unique_id].async_set_state(value)
 
-        self.add_entities(new_entities.values())
+                if (type(value) is str) and ("map[" in value):
+                    map_value = map_value_re.findall(value)
+                    if "gps" in field_id:
+                        #GPS
+                        position = {}
+                        for (key,value) in map_value:
+                            position[key] = float(value)
+                        await process(field_id, position)
+                    else:
+                        #Other - such as accelerator
+                        for (key,value) in map_value:
+                            await process(field_id + f"_{key}", float(value))
+                else:
+                    # Regular sensor
+                    await process(field_id, value)
+
+        self.__add_entities(new_entities.values())
 
     @staticmethod
     async def __update_listener(hass, entry):
@@ -197,29 +235,39 @@ class TTN_client:
         # TBD
         self.__is_connected = False
 
-    def add_entities(self, entities=[]):
+    def __add_entities(self, entities=[]):
 
         for entity in entities:
             assert entity.unique_id not in self.__entities
             self.__entities[entity.unique_id] = entity
 
-        self.add_sensors()
+        self.add_entities()
 
-    def add_sensors(self, async_add_entities=None):
-        if async_add_entities:
+    def add_entities(self, async_add_sensor_entities=None, async_add_device_tracker_entities=None):
+        if async_add_sensor_entities:
             # Remember handling for dynamic adds later
-            self.__async_add_sensor_entities = async_add_entities
-        if not self.__async_add_sensor_entities:
-            # Not ready yet - wait for component setup to complete
-            return
+            self.__async_add_sensor_entities = async_add_sensor_entities
 
-        to_be_added = []
+        if async_add_device_tracker_entities:
+            # Remember handling for dynamic adds later
+            self.__async_add_device_tracker_entities = async_add_device_tracker_entities
+
+        sensors_to_be_added = []
+        device_tracker_to_be_added = []
         for entity in self.__entities.values():
             if entity.to_be_added:
-                to_be_added.append(entity)
-                entity.to_be_added = False
+                if self.__async_add_sensor_entities       and (type(entity) == TtnDataSensor):
+                        sensors_to_be_added.append(entity)
+                        entity.to_be_added = False
+                if self.__async_add_device_tracker_entities and (type(entity) == TtnDataDeviceTracker):
+                    device_tracker_to_be_added.append(entity)
+                    entity.to_be_added = False
 
-        self.__async_add_sensor_entities(to_be_added, True)
+        if self.__async_add_sensor_entities:
+            self.__async_add_sensor_entities(sensors_to_be_added, True)
+
+        if self.__async_add_device_tracker_entities:
+            self.__async_add_device_tracker_entities(device_tracker_to_be_added, True)
 
     async def remove_all_entities(self):
         for entity in self.__entities.values():
@@ -275,7 +323,7 @@ class TtnDataSensor(Entity):
         self.__client = client
         self.__device_id = device_id
         self.__field_id = field_id
-        self.__state = state
+        self._state = state
 
         self.__unique_id = self.get_unique_id(self.__device_id, self.__field_id)
         self.__unit_of_measurement = None
@@ -322,16 +370,21 @@ class TtnDataSensor(Entity):
     @property
     def state(self):
         """Return the state of the entity."""
-        return self.__state
+        return self._state
 
     async def async_set_state(self, value):
-        self.__state = value
+        self._state = value
         await self.async_update_ha_state()
 
     @property
     def unit_of_measurement(self):
         """Return the unit this state is expressed in."""
         return self.__unit_of_measurement
+
+    @property
+    def state_attributes(self):
+        """Return the device state attributes."""
+        return {}
 
     @property
     def entitiy_state_attributes(self):
@@ -342,11 +395,6 @@ class TtnDataSensor(Entity):
             # ATTR_RAW: self._state["raw"],
             # ATTR_TIME: self._state["time"],
         }
-
-    # async def async_update(self):
-    #    """Get the current state."""
-    #    await self._ttn_data_storage.async_update()
-    #    self._state = self._ttn_data_storage.data
 
     def __refresh_names(self):
         device_name = self.__device_id
@@ -375,3 +423,77 @@ class TtnDataSensor(Entity):
         device_registry.async_get_or_create(
             config_entry_id=self.__client.entry.entry_id, **self.device_info
         )
+
+class TtnDataDeviceTracker(TtnDataSensor):
+
+    @property
+    def location_accuracy(self):
+        """Return the location accuracy of the device.
+
+        Value in meters.
+        """
+        return 0
+
+    @property
+    def location_name(self) -> str:
+        """Return a location name for the current location of the device."""
+        return None
+
+    @property
+    def latitude(self) -> float:
+        """Return latitude value of the device."""
+        return self._state["latitude"]
+
+    @property
+    def longitude(self) -> float:
+        """Return longitude value of the device."""
+        return self._state["longitude"]
+
+    @property
+    def altitude(self) -> float:
+        """Return altitude value of the device."""
+        return self._state["altitude"]
+
+    @property
+    def state(self):
+        """Return the state of the device."""
+        if self.location_name:
+            return self.location_name
+
+        if self._state["latitude"] > 0:
+            zone_state = zone.async_active_zone(
+                self.hass, self.latitude, self.longitude, self.location_accuracy
+            )
+            if zone_state is None:
+                state = STATE_NOT_HOME
+            elif zone_state.entity_id == zone.ENTITY_ID_HOME:
+                state = STATE_HOME
+            else:
+                state = zone_state.name
+            return state
+
+        return None
+
+    @property
+    def state_attributes(self):
+        """Return the device state attributes."""
+        attr = {}
+        attr.update(super().state_attributes)
+        if self.latitude is not None:
+            attr[ATTR_LATITUDE] = self.latitude
+            attr[ATTR_LONGITUDE] = self.longitude
+            attr[ATTR_GPS_ACCURACY] = self.location_accuracy
+            attr["altitude"] = self.altitude
+
+        return attr
+
+    @property
+    def entitiy_state_attributes(self):
+        """Return the state attributes of the sensor."""
+        # if self._ttn_data_storage.data is not None:
+        return {
+            ATTR_entitiy_ID: self.__entitiy_id,
+            # ATTR_RAW: self._state["raw"],
+            # ATTR_TIME: self._state["time"],
+        }
+

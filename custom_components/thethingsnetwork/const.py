@@ -14,7 +14,7 @@ API_FIRST_FETCH_LAST = "1d"
 
 TTN_DATA_STORAGE_URL = "https://{app_id}.data.thethingsnetwork.org/{endpoint}"
 
-COMPONENT_TYPES = ["sensor"]
+COMPONENT_TYPES = ["sensor", "device_tracker"]
 
 # Init menu
 OPTIONS_SELECTED_MENU = "selected_menu"
