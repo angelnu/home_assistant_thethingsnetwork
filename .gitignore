@@ -5,3 +5,4 @@ __pycache__
 .storage/
 .HA_VERSION
 sensor viejo.py
+.DS_Store

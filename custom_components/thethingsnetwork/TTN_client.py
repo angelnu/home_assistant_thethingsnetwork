@@ -14,6 +14,7 @@ from homeassistant.const import (
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from homeassistant.components import zone
+from homeassistant.helpers.typing import StateType
 
 import asyncio
 import aiohttp
@@ -21,6 +22,7 @@ import async_timeout
 from datetime import timedelta
 from aiohttp.hdrs import ACCEPT, AUTHORIZATION
 import re
+from typing import Any, Awaitable, Dict, Iterable, List, Optional
 
 from . import LOGGER
 from .const import *
@@ -182,7 +184,6 @@ class TTN_client:
                             # Create
                             elif type(value) == dict:
                                 # GPS
-                                print("BBBBBIEN")
                                 new_entities[unique_id] = TtnDataDeviceTracker(
                                     self, device_id, field_id, value
                                 )
@@ -326,30 +327,91 @@ class TtnDataSensor(Entity):
         self._state = state
 
         self.__unique_id = self.get_unique_id(self.__device_id, self.__field_id)
-        self.__unit_of_measurement = None
         self.to_be_added = True
         self.to_be_removed = False
 
+        #Values from options
+        self.__unit_of_measurement = None
+        self.__device_class = None
+        self.__icon = None
+        self.__picture = None
+        self.__supported_features = None
+        self.__context_recent_time_s = 5
+
         self.__refresh_names()
 
+    #---------------
+    # standard Entity propertiess
+    #---------------
     @property
-    def unique_id(self):
+    def should_poll(self) -> bool:
+        """Return True if entity has to be polled for state.
+
+        False if entity pushes its state to HA.
+        """
+        return False
+
+    @property
+    def unique_id(self) -> Optional[str]:
+        """Return a unique ID."""
         return self.__unique_id
 
     @property
-    def device_id(self):
-        return self.__device_id
+    def name(self) -> Optional[str]:
+        """Return the name of the entity."""
+        return self.__name
 
     @property
-    def device_name(self):
-        return self.__device_name
+    def state(self) -> StateType:
+        """Return the state of the entity."""
+        return self._state
 
     @property
-    def field_id(self):
-        return self.__field_id
+    def entitiy_state_attributes(self):
+        """Return the state attributes of the sensor."""
+        # if self._ttn_data_storage.data is not None:
+        return {
+            ATTR_entitiy_ID: self.__entitiy_id,
+            # ATTR_RAW: self._state["raw"],
+            # ATTR_TIME: self._state["time"],
+        }
 
     @property
-    def device_info(self):
+    def capability_attributes(self) -> Optional[Dict[str, Any]]:
+        """Return the capability attributes.
+
+        Attributes that explain the capabilities of an entity.
+
+        Implemented by component base class. Convention for attribute names
+        is lowercase snake_case.
+        """
+        return {}
+
+    @property
+    def state_attributes(self) -> Optional[Dict[str, Any]]:
+        """Return the state attributes.
+
+        Implemented by component base class. Convention for attribute names
+        is lowercase snake_case.
+        """
+        return {}
+
+    @property
+    def device_state_attributes(self) -> Optional[Dict[str, Any]]:
+        """Return device specific state attributes.
+
+        Implemented by platform classes. Convention for attribute names
+        is lowercase snake_case.
+        """
+        return {}
+
+    @property
+    def device_info(self) -> Optional[Dict[str, Any]]:
+        """Return device specific attributes.
+
+        Implemented by platform classes.
+        """
+
         return {
             "identifiers": {
                 # Serial numbers are unique identifiers within a specific domain
@@ -363,38 +425,78 @@ class TtnDataSensor(Entity):
         }
 
     @property
-    def name(self):
-        """Return the name of the sensor."""
-        return self.__name
+    def device_class(self) -> Optional[str]:
+        """Return the class of this device, from component DEVICE_CLASSES."""
+        return self.__device_class
 
     @property
-    def state(self):
-        """Return the state of the entity."""
-        return self._state
+    def unit_of_measurement(self) -> Optional[str]:
+        """Return the unit of measurement of this entity, if any."""
+        return self.__unit_of_measurement
+
+    @property
+    def icon(self) -> Optional[str]:
+        """Return the icon to use in the frontend, if any."""
+        return self.__icon
+
+    @property
+    def entity_picture(self) -> Optional[str]:
+        """Return the entity picture to use in the frontend, if any."""
+        return self.__picture
+
+    @property
+    def available(self) -> bool:
+        """Return True if entity is available."""
+        return True
+
+    @property
+    def assumed_state(self) -> bool:
+        """Return True if unable to access real state of the entity."""
+        return False
+
+    @property
+    def force_update(self) -> bool:
+        """Return True if state updates should be forced.
+
+        If True, a state change will be triggered anytime the state property is
+        updated, not just when the value changes.
+        """
+        return False
+
+    @property
+    def supported_features(self) -> Optional[int]:
+        """Flag supported features."""
+        return self.__supported_features
+
+    @property
+    def context_recent_time(self) -> timedelta:
+        """Time that a context is considered recent."""
+        return timedelta(seconds=self.__context_recent_time_s)
+
+    @property
+    def entity_registry_enabled_default(self) -> bool:
+        """Return if the entity should be enabled when first added to the entity registry."""
+        return True
+
+
+    #---------------
+    # TTN integration additional methods
+    #---------------
+    @property
+    def device_id(self):
+        return self.__device_id
+
+    @property
+    def device_name(self):
+        return self.__device_name
+
+    @property
+    def field_id(self):
+        return self.__field_id
 
     async def async_set_state(self, value):
         self._state = value
         await self.async_update_ha_state()
-
-    @property
-    def unit_of_measurement(self):
-        """Return the unit this state is expressed in."""
-        return self.__unit_of_measurement
-
-    @property
-    def state_attributes(self):
-        """Return the device state attributes."""
-        return {}
-
-    @property
-    def entitiy_state_attributes(self):
-        """Return the state attributes of the sensor."""
-        # if self._ttn_data_storage.data is not None:
-        return {
-            ATTR_entitiy_ID: self.__entitiy_id,
-            # ATTR_RAW: self._state["raw"],
-            # ATTR_TIME: self._state["time"],
-        }
 
     def __refresh_names(self):
         device_name = self.__device_id
@@ -405,10 +507,15 @@ class TtnDataSensor(Entity):
         if self.__device_id in devices:
             device_name                = devices[self.__device_id].get(OPTIONS_DEVICE_NAME,          device_name)
 
-        fields = options.get(OPTIONS_DEVICE_NAME, {})
+        fields = options.get(OPTIONS_MENU_EDIT_FIELDS, {})
         if self.__field_id in fields:
-            field_name                 = fields[self.__field_id].get(OPTIONS_FIELD_NAME,             field_name)
-            self.__unit_of_measurement = fields[self.__field_id].get(OPTIONS_FIELD_UNIT_MEASUREMENT, "")
+            field_name                   = fields[self.__field_id].get(OPTIONS_FIELD_NAME,                  field_name)
+            self.__unit_of_measurement   = fields[self.__field_id].get(OPTIONS_FIELD_UNIT_MEASUREMENT,      None)
+            self.__device_class          = fields[self.__field_id].get(OPTIONS_FIELD_DEVICE_CLASS,          None)
+            self.__icon                  = fields[self.__field_id].get(OPTIONS_FIELD_ICON,                  None)
+            self.__picture               = fields[self.__field_id].get(OPTIONS_FIELD_PICTURE,               None)
+            self.__supported_features    = fields[self.__field_id].get(OPTIONS_FIELD_SUPPORTED_FEATURES,    None)
+            self.__context_recent_time_s = fields[self.__field_id].get(OPTIONS_FIELD_CONTEXT_RECENT_TIME_S, 5)
 
         self.__device_name = device_name
         self.__field_name = field_name

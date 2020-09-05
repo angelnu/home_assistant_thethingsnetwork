@@ -57,8 +57,13 @@
         "description": "Field: {selected_field}",
         "data": {
           "device_scope": "Scope for field (device or global)",
-          "field_friendly_name": "Field friendly name",
-          "unit_of_measurement": "Unit of measurement"
+          "name": "Field friendly name",
+          "unit_of_measurement": "Unit of measurement",
+          "device_class": "Device class",
+          "icon": "Icon",
+          "picture": "Picture",
+          "supported_features": "Supported features",
+          "context_recent_time_s": "Context recent time (seconds)"
         }
       }
     },

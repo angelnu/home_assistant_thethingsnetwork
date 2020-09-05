@@ -213,51 +213,51 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
         """Field edit form."""
 
         # Get field options
-        field_options = self.options.setdefault(OPTIONS_DEVICE_NAME, {}).setdefault(
-            self.selected_field, {}
-        )
+        field_options = self.options.setdefault(OPTIONS_MENU_EDIT_FIELDS, {}).setdefault(self.selected_field, {})
 
         if user_input is not None:
+            #Set empty
+            field_options = self.options[OPTIONS_MENU_EDIT_FIELDS][self.selected_field] = {}
+
             # Update options
-            field_options[OPTIONS_FIELD_NAME] = user_input[OPTIONS_FIELD_NAME]
-            field_options[OPTIONS_FIELD_UNIT_MEASUREMENT] = user_input[
-                OPTIONS_FIELD_UNIT_MEASUREMENT
-            ]
-            field_options[OPTIONS_FIELD_DEVICE_SCOPE] = user_input[
-                OPTIONS_FIELD_DEVICE_SCOPE
-            ]
+            field_options[OPTIONS_FIELD_NAME]                  = user_input.get(OPTIONS_FIELD_NAME)
+            field_options[OPTIONS_FIELD_DEVICE_SCOPE]          = user_input.get(OPTIONS_FIELD_DEVICE_SCOPE)
+            field_options[OPTIONS_FIELD_UNIT_MEASUREMENT]      = user_input.get(OPTIONS_FIELD_UNIT_MEASUREMENT, None)
+            field_options[OPTIONS_FIELD_DEVICE_CLASS]          = user_input.get(OPTIONS_FIELD_DEVICE_CLASS, None)
+            field_options[OPTIONS_FIELD_ICON]                  = user_input.get(OPTIONS_FIELD_ICON, None)
+            field_options[OPTIONS_FIELD_PICTURE]               = user_input.get(OPTIONS_FIELD_PICTURE, None)
+            field_options[OPTIONS_FIELD_SUPPORTED_FEATURES]    = user_input.get(OPTIONS_FIELD_SUPPORTED_FEATURES, None)
+            field_options[OPTIONS_FIELD_CONTEXT_RECENT_TIME_S] = user_input.get(OPTIONS_FIELD_CONTEXT_RECENT_TIME_S)
 
             # For global scope remove option
-            if (
-                field_options[OPTIONS_FIELD_DEVICE_SCOPE]
-                == OPTIONS_FIELD_DEVICE_SCOPE_GLOBAL
-            ):
+            if (field_options[OPTIONS_FIELD_DEVICE_SCOPE] == OPTIONS_FIELD_DEVICE_SCOPE_GLOBAL):
                 del field_options[OPTIONS_FIELD_DEVICE_SCOPE]
 
             # Return update
             return self._update_entry(self.options)
 
         # Get options
-        name = field_options.setdefault(OPTIONS_FIELD_NAME, self.selected_field)
-        unit_of_measurement = field_options.setdefault(
-            OPTIONS_FIELD_UNIT_MEASUREMENT, ""
-        )
-        device_scope = field_options.setdefault(
-            OPTIONS_FIELD_DEVICE_SCOPE, OPTIONS_FIELD_DEVICE_SCOPE_GLOBAL
-        )
+        name                  = field_options.setdefault(OPTIONS_FIELD_NAME,                  self.selected_field)
+        device_scope          = field_options.setdefault(OPTIONS_FIELD_DEVICE_SCOPE,          OPTIONS_FIELD_DEVICE_SCOPE_GLOBAL)
+        unit_of_measurement   = field_options.setdefault(OPTIONS_FIELD_UNIT_MEASUREMENT,      None)
+        device_class          = field_options.setdefault(OPTIONS_FIELD_DEVICE_CLASS,          None)
+        icon                  = field_options.setdefault(OPTIONS_FIELD_ICON,                  None)
+        picture               = field_options.setdefault(OPTIONS_FIELD_PICTURE,               None)
+        supported_features    = field_options.setdefault(OPTIONS_FIELD_SUPPORTED_FEATURES,    None)
+        context_recent_time_s = field_options.setdefault(OPTIONS_FIELD_CONTEXT_RECENT_TIME_S, 5)
+
+        device_options      = vol.In([OPTIONS_FIELD_DEVICE_SCOPE_GLOBAL] + self.get_device_ids())
 
         # Return form
         fields = OrderedDict()
-        fields[vol.Required(OPTIONS_FIELD_NAME, default=name)] = str
-        fields[
-            vol.Required(OPTIONS_FIELD_UNIT_MEASUREMENT, default=unit_of_measurement)
-        ] = str
-        device_options = vol.In(
-            [OPTIONS_FIELD_DEVICE_SCOPE_GLOBAL] + self.get_device_ids()
-        )
-        fields[
-            vol.Required(OPTIONS_FIELD_DEVICE_SCOPE, default=device_scope)
-        ] = device_options
+        fields[vol.Required(OPTIONS_FIELD_NAME,                  default=name                                         )] = str
+        fields[vol.Required(OPTIONS_FIELD_DEVICE_SCOPE,          default=device_scope                                 )] = device_options
+        fields[vol.Optional(OPTIONS_FIELD_UNIT_MEASUREMENT,      description={"suggested_value": unit_of_measurement} )] = str
+        fields[vol.Optional(OPTIONS_FIELD_DEVICE_CLASS,          description={"suggested_value": device_class}        )] = str
+        fields[vol.Optional(OPTIONS_FIELD_ICON,                  description={"suggested_value": icon}                )] = str
+        fields[vol.Optional(OPTIONS_FIELD_PICTURE,               description={"suggested_value": picture}             )] = str
+        fields[vol.Optional(OPTIONS_FIELD_SUPPORTED_FEATURES,    description={"suggested_value": supported_features}  )] = str
+        fields[vol.Required(OPTIONS_FIELD_CONTEXT_RECENT_TIME_S, default=context_recent_time_s                        )] = int
         return self.async_show_form(
             step_id="field_edit",
             description_placeholders={OPTIONS_SELECTED_FIELD: self.selected_field},
