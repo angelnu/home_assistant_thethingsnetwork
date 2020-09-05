@@ -14,7 +14,6 @@ from homeassistant.const import (
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from homeassistant.components import zone
-from homeassistant.helpers.typing import StateType
 
 import asyncio
 import aiohttp
@@ -362,7 +361,7 @@ class TtnDataSensor(Entity):
         return self.__name
 
     @property
-    def state(self) -> StateType:
+    def state(self):
         """Return the state of the entity."""
         return self._state
 
