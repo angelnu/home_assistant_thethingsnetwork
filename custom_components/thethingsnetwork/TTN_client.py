@@ -180,23 +180,24 @@ class TTN_client:
 
         # Discover entities
         new_entities = {}
+        updated_entities = {}
         measurements = await self.storage_api_call(f"api/v2/query?last={fetch_last}")
         if not measurements:
             measurements = []
-        for measurement in measurements:
+        for measurement in reversed(measurements):
             # Get and delete device_id from measurement
             device_id = measurement["device_id"]
             del measurement["device_id"]
-            for (field_id, value) in reversed(measurement.items()):
+            for (field_id, value) in measurement.items():
 
+                if value is None:
+                    continue
                 async def process(field_id, value):
                     unique_id = TtnDataSensor.get_unique_id(device_id, field_id)
                     if unique_id not in self.__entities:
                         if unique_id not in new_entities:
-                            if not value:
-                                pass
                             # Create
-                            elif type(value) == bool:
+                            if type(value) == bool:
                                 # Binary Sensor
                                 new_entities[unique_id] = TtnDataBinarySensor(
                                     self, device_id, field_id, value
@@ -212,12 +213,16 @@ class TTN_client:
                                     self, device_id, field_id, value
                                 )
                         else:
-                            # Ignore multiple measurements - we use latest
-                            # This is why we loop in reverse orderr
+                            # Ignore multiple measurements - we use first (=latest)
                             pass
                     else:
-                        # Update value in existing entitity
-                        await self.__entities[unique_id].async_set_state(value)
+                        if unique_id not in updated_entities:
+                            # Update value in existing entitity
+                            await self.__entities[unique_id].async_set_state(value)
+                            updated_entities[unique_id] = self.__entities[unique_id]
+                        else:
+                            # Ignore multiple measurements - we use first (=latest)
+                            pass
 
                 async def process_gps(field_id, value):
                     position = {}
