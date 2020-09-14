@@ -58,6 +58,7 @@
         "data": {
           "device_scope": "Scope for field (device or global)",
           "name": "Field friendly name",
+          "entity_type": "Type",
           "unit_of_measurement": "Unit of measurement",
           "device_class": "Device class",
           "icon": "Icon",

@@ -14,7 +14,7 @@ API_FIRST_FETCH_LAST = "1d"
 
 TTN_DATA_STORAGE_URL = "https://{app_id}.data.thethingsnetwork.org/{endpoint}"
 
-COMPONENT_TYPES = ["sensor", "device_tracker"]
+COMPONENT_TYPES = ["sensor", "binary_sensor", "device_tracker"]
 
 # Init menu
 OPTIONS_SELECTED_MENU = "selected_menu"
@@ -30,6 +30,11 @@ OPTIONS_MENU_INTEGRATION_REFRESH_TIME_S = "refresh_time"
 OPTIONS_DEVICE_NAME = "name"
 # Field settings
 OPTIONS_FIELD_NAME = "name"
+OPTIONS_FIELD_ENTITY_TYPE = "entity_type"
+OPTIONS_FIELD_ENTITY_TYPE_AUTO = "auto"
+OPTIONS_FIELD_ENTITY_TYPE_SENSOR = "sensor"
+OPTIONS_FIELD_ENTITY_TYPE_BINARY_SENSOR = "binary sensor"
+OPTIONS_FIELD_ENTITY_TYPE_DEVICE_TRACKER = "device tracker"
 OPTIONS_FIELD_UNIT_MEASUREMENT = "unit_of_measurement"
 OPTIONS_FIELD_DEVICE_CLASS = "device_class"
 OPTIONS_FIELD_ICON = "icon"

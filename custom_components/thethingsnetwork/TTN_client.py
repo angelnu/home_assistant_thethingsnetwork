@@ -10,6 +10,8 @@ from homeassistant.const import (
     ATTR_LONGITUDE,
     STATE_HOME,
     STATE_NOT_HOME,
+    STATE_OFF,
+    STATE_ON,
 )
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
@@ -79,6 +81,18 @@ class TTN_client:
     def get_options(self):
         return self.__entry.options
 
+    def get_device_options(self, device_id):
+        devices = self.get_options().get(OPTIONS_MENU_EDIT_DEVICES, {})
+        return devices.get(device_id, {})
+
+    def get_field_options(self, device_id, field_id):
+        fields = self.get_options().get(OPTIONS_MENU_EDIT_FIELDS, {})
+        field_opts = fields.get(field_id, {})
+        if (field_opts.get(OPTIONS_FIELD_DEVICE_SCOPE, device_id) == device_id):
+            return field_opts
+        else:
+            return {}
+
     def get_refresh_period_s(self):
         integration_settings = self.get_options().get(OPTIONS_MENU_EDIT_INTEGRATION, {})
         return integration_settings.get(
@@ -106,6 +120,7 @@ class TTN_client:
         self.__first_fetch = True
         self.__coordinator = None
         self.__async_add_sensor_entities = None
+        self.__async_add_binary_sensor_entities = None
         self.__async_add_device_tracker_entities = None
 
         # Register for entry update
@@ -181,6 +196,11 @@ class TTN_client:
                             if not value:
                                 pass
                             # Create
+                            elif type(value) == bool:
+                                # Binary Sensor
+                                new_entities[unique_id] = TtnDataBinarySensor(
+                                    self, device_id, field_id, value
+                                )
                             elif type(value) == dict:
                                 # GPS
                                 new_entities[unique_id] = TtnDataDeviceTracker(
@@ -199,21 +219,34 @@ class TTN_client:
                         # Update value in existing entitity
                         await self.__entities[unique_id].async_set_state(value)
 
-                if (type(value) is str) and ("map[" in value):
+                async def process_gps(field_id, value):
+                    position = {}
                     map_value = map_value_re.findall(value)
-                    if "gps" in field_id:
-                        #GPS
-                        position = {}
-                        for (key,value) in map_value:
-                            position[key] = float(value)
-                        await process(field_id, position)
-                    else:
-                        #Other - such as accelerator
-                        for (key,value) in map_value:
-                            await process(field_id + f"_{key}", float(value))
-                else:
-                    # Regular sensor
+                    for (key,value) in map_value:
+                        position[key] = float(value)
+                    await process(field_id, position)
+
+
+                entity_type = self.get_field_options(device_id, field_id).get(OPTIONS_FIELD_ENTITY_TYPE, None)
+                if entity_type == OPTIONS_FIELD_ENTITY_TYPE_SENSOR:
                     await process(field_id, value)
+                elif entity_type == OPTIONS_FIELD_ENTITY_TYPE_BINARY_SENSOR:
+                    await process(field_id, bool(value))
+                elif entity_type == OPTIONS_FIELD_ENTITY_TYPE_DEVICE_TRACKER:
+                    await process_gps(field_id, value)
+                else:
+                    if (type(value) is str) and ("map[" in value):
+                        if "gps" in field_id:
+                            #GPS
+                            await process_gps(field_id, value)
+                        else:
+                            #Other - such as accelerator
+                            map_value = map_value_re.findall(value)
+                            for (key,value) in map_value:
+                                await process(field_id + f"_{key}", float(value))
+                    else:
+                        # Regular sensor
+                        await process(field_id, value)
 
         self.__add_entities(new_entities.values())
 
@@ -231,6 +264,10 @@ class TTN_client:
         for entitiy in self.__entities.values():
             await entitiy.refresh_options()
 
+        # Refresh data
+        self.__first_fetch = True
+        await self.__coordinator.async_request_refresh()
+
     def __disconnect(self):
         # TBD
         self.__is_connected = False
@@ -243,21 +280,32 @@ class TTN_client:
 
         self.add_entities()
 
-    def add_entities(self, async_add_sensor_entities=None, async_add_device_tracker_entities=None):
+    def add_entities(self,
+                     async_add_sensor_entities=None,
+                     async_add_binary_sensor_entities=None,
+                     async_add_device_tracker_entities=None):
         if async_add_sensor_entities:
             # Remember handling for dynamic adds later
             self.__async_add_sensor_entities = async_add_sensor_entities
+
+        if async_add_binary_sensor_entities:
+            # Remember handling for dynamic adds later
+            self.__async_add_binary_sensor_entities = async_add_binary_sensor_entities
 
         if async_add_device_tracker_entities:
             # Remember handling for dynamic adds later
             self.__async_add_device_tracker_entities = async_add_device_tracker_entities
 
         sensors_to_be_added = []
+        binary_sensors_to_be_added = []
         device_tracker_to_be_added = []
         for entity in self.__entities.values():
             if entity.to_be_added:
                 if self.__async_add_sensor_entities       and (type(entity) == TtnDataSensor):
                         sensors_to_be_added.append(entity)
+                        entity.to_be_added = False
+                if self.__async_add_binary_sensor_entities       and (type(entity) == TtnDataBinarySensor):
+                        binary_sensors_to_be_added.append(entity)
                         entity.to_be_added = False
                 if self.__async_add_device_tracker_entities and (type(entity) == TtnDataDeviceTracker):
                     device_tracker_to_be_added.append(entity)
@@ -265,6 +313,9 @@ class TTN_client:
 
         if self.__async_add_sensor_entities:
             self.__async_add_sensor_entities(sensors_to_be_added, True)
+
+        if self.__async_add_binary_sensor_entities:
+            self.__async_add_binary_sensor_entities(binary_sensors_to_be_added, True)
 
         if self.__async_add_device_tracker_entities:
             self.__async_add_device_tracker_entities(device_tracker_to_be_added, True)
@@ -311,7 +362,7 @@ class TTN_client:
         return await response.json()
 
 
-class TtnDataSensor(Entity):
+class TtnDataEntity(Entity):
     """Representation of a The Things Network Data Storage sensor."""
 
     @staticmethod
@@ -330,7 +381,7 @@ class TtnDataSensor(Entity):
         self.to_be_removed = False
 
         #Values from options
-        self.__unit_of_measurement = None
+        self._unit_of_measurement = None
         self.__device_class = None
         self.__icon = None
         self.__picture = None
@@ -429,11 +480,6 @@ class TtnDataSensor(Entity):
         return self.__device_class
 
     @property
-    def unit_of_measurement(self) -> Optional[str]:
-        """Return the unit of measurement of this entity, if any."""
-        return self.__unit_of_measurement
-
-    @property
     def icon(self) -> Optional[str]:
         """Return the icon to use in the frontend, if any."""
         return self.__icon
@@ -500,21 +546,20 @@ class TtnDataSensor(Entity):
     def __refresh_names(self):
         device_name = self.__device_id
         field_name = self.__field_id
-        options = self.__client.get_options()
 
-        devices = options.get(OPTIONS_MENU_EDIT_DEVICES, {})
-        if self.__device_id in devices:
-            device_name                = devices[self.__device_id].get(OPTIONS_DEVICE_NAME,          device_name)
+        #Device options
+        device_opts = self.__client.get_device_options(self.__device_id)
+        device_name                  = device_opts.get(OPTIONS_DEVICE_NAME,                device_name)
 
-        fields = options.get(OPTIONS_MENU_EDIT_FIELDS, {})
-        if self.__field_id in fields:
-            field_name                   = fields[self.__field_id].get(OPTIONS_FIELD_NAME,                  field_name)
-            self.__unit_of_measurement   = fields[self.__field_id].get(OPTIONS_FIELD_UNIT_MEASUREMENT,      None)
-            self.__device_class          = fields[self.__field_id].get(OPTIONS_FIELD_DEVICE_CLASS,          None)
-            self.__icon                  = fields[self.__field_id].get(OPTIONS_FIELD_ICON,                  None)
-            self.__picture               = fields[self.__field_id].get(OPTIONS_FIELD_PICTURE,               None)
-            self.__supported_features    = fields[self.__field_id].get(OPTIONS_FIELD_SUPPORTED_FEATURES,    None)
-            self.__context_recent_time_s = fields[self.__field_id].get(OPTIONS_FIELD_CONTEXT_RECENT_TIME_S, 5)
+        #Field options
+        field_opts = self.__client.get_field_options(self.__device_id, self.__field_id)
+        field_name                   = field_opts.get(OPTIONS_FIELD_NAME,                  field_name)
+        self._unit_of_measurement    = field_opts.get(OPTIONS_FIELD_UNIT_MEASUREMENT,      None)
+        self.__device_class          = field_opts.get(OPTIONS_FIELD_DEVICE_CLASS,          None)
+        self.__icon                  = field_opts.get(OPTIONS_FIELD_ICON,                  None)
+        self.__picture               = field_opts.get(OPTIONS_FIELD_PICTURE,               None)
+        self.__supported_features    = field_opts.get(OPTIONS_FIELD_SUPPORTED_FEATURES,    None)
+        self.__context_recent_time_s = field_opts.get(OPTIONS_FIELD_CONTEXT_RECENT_TIME_S, 5)
 
         self.__device_name = device_name
         self.__field_name = field_name
@@ -529,6 +574,27 @@ class TtnDataSensor(Entity):
         device_registry.async_get_or_create(
             config_entry_id=self.__client.entry.entry_id, **self.device_info
         )
+
+class TtnDataSensor(TtnDataEntity):
+    @property
+    def unit_of_measurement(self) -> Optional[str]:
+        """Return the unit of measurement of this entity, if any."""
+        return self._unit_of_measurement
+
+
+class TtnDataBinarySensor(TtnDataEntity):
+    """Represent a binary sensor."""
+
+    @property
+    def is_on(self):
+        """Return true if the binary sensor is on."""
+        return bool(self._state)
+
+    @property
+    def state(self):
+        """Return the state of the binary sensor."""
+        return STATE_ON if self.is_on else STATE_OFF
+
 
 class TtnDataDeviceTracker(TtnDataSensor):
 
