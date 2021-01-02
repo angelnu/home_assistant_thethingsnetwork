@@ -93,6 +93,12 @@ class TTN_client:
         else:
             return {}
 
+    def get_first_fetch_last_h(self):
+        integration_settings = self.get_options().get(OPTIONS_MENU_EDIT_INTEGRATION, {})
+        return integration_settings.get(
+            OPTIONS_MENU_INTEGRATION_FIRST_FETCH_TIME_H, DEFAULT_FIRST_FETCH_LAST_H
+        )
+
     def get_refresh_period_s(self):
         integration_settings = self.get_options().get(OPTIONS_MENU_EDIT_INTEGRATION, {})
         return integration_settings.get(
@@ -171,10 +177,12 @@ class TTN_client:
 
         if self.__first_fetch:
             self.__first_fetch = False
-            fetch_last = API_FIRST_FETCH_LAST
+            fetch_last = f"{self.get_first_fetch_last_h()}h"
+            LOGGER.info(f"First fetch of tth data: {fetch_last}")
         else:
             #Fetch new measurements since last time (with an extra minute margin)
             fetch_last = f"{self.get_refresh_period_s()+60}s"
+            LOGGER.debug(f"Fetch of ttn data: {fetch_last}")
 
         map_value_re = re.compile('(\w+):(-?[\.\w]+)')
 
@@ -184,6 +192,7 @@ class TTN_client:
         measurements = await self.storage_api_call(f"api/v2/query?last={fetch_last}")
         if not measurements:
             measurements = []
+        LOGGER.debug(f"Fetched {len(measurements)} measurements from ttn")
         for measurement in reversed(measurements):
             # Get and delete device_id from measurement
             device_id = measurement["device_id"]

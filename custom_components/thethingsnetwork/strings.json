@@ -29,6 +29,7 @@
       "integration_settings": {
         "title": "Integration settings",
         "data": {
+          "first_fetch_time": "first fetch time (hours)",
           "refresh_time": "refresh period (seconds)"
         }
       },

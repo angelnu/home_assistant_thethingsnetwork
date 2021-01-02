@@ -111,6 +111,9 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
 
         if user_input is not None:
             # Update options
+            integration_settings[OPTIONS_MENU_INTEGRATION_FIRST_FETCH_TIME_H] = user_input[
+                OPTIONS_MENU_INTEGRATION_FIRST_FETCH_TIME_H
+            ]
             integration_settings[OPTIONS_MENU_INTEGRATION_REFRESH_TIME_S] = user_input[
                 OPTIONS_MENU_INTEGRATION_REFRESH_TIME_S
             ]
@@ -119,12 +122,20 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
             return self._update_entry(self.options)
 
         # Get config for device
+        first_fetch_time_h = integration_settings.setdefault(
+            OPTIONS_MENU_INTEGRATION_FIRST_FETCH_TIME_H, DEFAULT_FIRST_FETCH_LAST_H
+        )
         refresh_time_s = integration_settings.setdefault(
             OPTIONS_MENU_INTEGRATION_REFRESH_TIME_S, DEFAULT_API_REFRESH_PERIOD_S
         )
 
         # Return form
         fields = OrderedDict()
+        fields[
+            vol.Required(
+                OPTIONS_MENU_INTEGRATION_FIRST_FETCH_TIME_H, default=first_fetch_time_h
+            )
+        ] = int
         fields[
             vol.Required(
                 OPTIONS_MENU_INTEGRATION_REFRESH_TIME_S, default=refresh_time_s

@@ -10,7 +10,7 @@ DOMAIN = "thethingsnetwork"
 
 DEFAULT_TIMEOUT = 10
 DEFAULT_API_REFRESH_PERIOD_S = 5 * 60
-API_FIRST_FETCH_LAST = "1d"
+DEFAULT_FIRST_FETCH_LAST_H = 48
 
 TTN_DATA_STORAGE_URL = "https://{app_id}.data.thethingsnetwork.org/{endpoint}"
 
@@ -25,6 +25,7 @@ OPTIONS_MENU_EDIT_FIELDS = "fields"
 OPTIONS_SELECTED_DEVICE = "selected_device"
 OPTIONS_SELECTED_FIELD = "selected_field"
 # Global settings
+OPTIONS_MENU_INTEGRATION_FIRST_FETCH_TIME_H = "first_fetch_time"
 OPTIONS_MENU_INTEGRATION_REFRESH_TIME_S = "refresh_time"
 # Device settings
 OPTIONS_DEVICE_NAME = "name"
