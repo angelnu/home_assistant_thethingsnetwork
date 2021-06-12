@@ -4,5 +4,5 @@
   "documentation": "https://www.home-assistant.io/integrations/thethingsnetwork",
   "config_flow": true,
   "codeowners": ["@fabaff"],
-    "version": "0.1.0"
+  "version": "0.1.0"
 }
