@@ -23,6 +23,7 @@ import async_timeout
 from datetime import timedelta
 from aiohttp.hdrs import ACCEPT, AUTHORIZATION
 import re
+import json
 from typing import Any, Awaitable, Dict, Iterable, List, Optional
 
 from . import LOGGER
@@ -117,6 +118,7 @@ class TTN_client:
 
         self.__entry = entry
         self.__hass = hass
+        self.__hostname = entry.data.get(CONF_HOSTNAME, TTN_API_HOSTNAME)
         self.__application_id = entry.data[CONF_APP_ID]
         self.__access_key = entry.data[CONF_ACCESS_KEY]
         LOGGER.debug(f"Creating TTN_client with application_id {self.__application_id}")
@@ -189,41 +191,46 @@ class TTN_client:
         # Discover entities
         new_entities = {}
         updated_entities = {}
-        measurements = await self.storage_api_call(f"api/v2/query?last={fetch_last}")
-        if not measurements:
-            measurements = []
-        LOGGER.debug(f"Fetched {len(measurements)} measurements from ttn")
-        for measurement in reversed(measurements):
-            # Get and delete device_id from measurement
-            device_id = measurement["device_id"]
-            del measurement["device_id"]
-            for (field_id, value) in measurement.items():
+        measurements = await self.storage_api_call(f"?last={fetch_last}")
+        async for measurement_raw in measurements:
+            #Skip empty lines not containing a result
+            if len(measurement_raw) < len("result"):
+                continue
+            
+            #Parse line with json dictionary
+            measurement = json.loads(measurement_raw)["result"]
+
+            # Get device_id and uplink_message from measurement
+            device_id = measurement["end_device_ids"]["device_id"]
+            uplink_message = measurement["uplink_message"]
+
+            # Skip not decoded measurements
+            if not "decoded_payload" in uplink_message:
+                continue
+            
+            for (field_id, value) in uplink_message["decoded_payload"].items():
 
                 if value is None:
                     continue
                 async def process(field_id, value):
                     unique_id = TtnDataSensor.get_unique_id(device_id, field_id)
                     if unique_id not in self.__entities:
-                        if unique_id not in new_entities:
-                            # Create
-                            if type(value) == bool:
-                                # Binary Sensor
-                                new_entities[unique_id] = TtnDataBinarySensor(
-                                    self, device_id, field_id, value
-                                )
-                            elif type(value) == dict:
-                                # GPS
-                                new_entities[unique_id] = TtnDataDeviceTracker(
-                                    self, device_id, field_id, value
-                                )
-                            else:
-                                # Sensor
-                                new_entities[unique_id] = TtnDataSensor(
-                                    self, device_id, field_id, value
-                                )
+                        # Create
+                        if type(value) == bool:
+                            # Binary Sensor
+                            new_entities[unique_id] = TtnDataBinarySensor(
+                                self, device_id, field_id, value
+                            )
+                        elif type(value) == dict:
+                            # GPS
+                            new_entities[unique_id] = TtnDataDeviceTracker(
+                                self, device_id, field_id, value
+                            )
                         else:
-                            # Ignore multiple measurements - we use first (=latest)
-                            pass
+                            # Sensor
+                            new_entities[unique_id] = TtnDataSensor(
+                                self, device_id, field_id, value
+                            )
                     else:
                         if unique_id not in updated_entities:
                             # Update value in existing entitity
@@ -249,15 +256,14 @@ class TTN_client:
                 elif entity_type == OPTIONS_FIELD_ENTITY_TYPE_DEVICE_TRACKER:
                     await process_gps(field_id, value)
                 else:
-                    if (type(value) is str) and ("map[" in value):
+                    if (type(value) is dict):
                         if "gps" in field_id:
                             #GPS
                             await process_gps(field_id, value)
                         else:
                             #Other - such as accelerator
-                            map_value = map_value_re.findall(value)
-                            for (key,value) in map_value:
-                                await process(field_id + f"_{key}", float(value))
+                            for (key, value_item) in value.items():
+                                await process(f"{field_id}_{key}", value_item)
                     else:
                         # Regular sensor
                         await process(field_id, value)
@@ -347,12 +353,13 @@ class TTN_client:
                 unload_ok = await entitiy.async_remove() and unload_ok
         return unload_ok
 
-    async def storage_api_call(self, endpoint):
+    async def storage_api_call(self, options):
 
         url = TTN_DATA_STORAGE_URL.format(
-            app_id=self.__application_id, endpoint=endpoint
+            app_id=self.__application_id, hostname=self.__hostname, options=options
         )
-        headers = {ACCEPT: CONTENT_TYPE_JSON, AUTHORIZATION: f"key {self.__access_key}"}
+        LOGGER.info(f"URL: {url}")
+        headers = {ACCEPT: "text/event-stream", AUTHORIZATION: f"Bearer {self.__access_key}"}
 
         try:
             session = async_get_clientsession(self.__hass)
@@ -372,8 +379,8 @@ class TTN_client:
         if status == HTTP_NOT_FOUND:
             LOGGER.error("Application ID is not available: %s", self.__application_id)
             return None
-
-        return await response.json()
+        
+        return response.content
 
 
 class TtnDataEntity(Entity):

@@ -22,7 +22,9 @@ class FlowHandler(config_entries.ConfigFlow):
         channel = vol.Schema({"unit": str, "name": str})
 
         return vol.Schema(
-            {vol.Required(CONF_APP_ID): str, vol.Required(CONF_ACCESS_KEY): str}
+            {vol.Required(CONF_HOSTNAME, default=TTN_API_HOSTNAME): str,
+             vol.Required(CONF_APP_ID): str,
+             vol.Required(CONF_ACCESS_KEY): str}
         )
 
     async def _create_entry(self, data):

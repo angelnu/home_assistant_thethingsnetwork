@@ -2,9 +2,10 @@
   "config": {
     "step": {
       "user": {
-        "title": "Connect to The Thinks Network App",
-        "description": "Enter the app id and access key for your TTN application.\n You can find your access key in the TTN console -> Applications -> application_id (see bottom -> access keys)",
+        "title": "Connect to The Thinks Network v3 App",
+        "description": "Enter the API hostname, app id and access key for your TTN application.\n You can find your access key in the TTN console -> Applications -> application_id -> API keys",
         "data": {
+          "hostname": "Hostname",
           "app_id": "Application ID",
           "access_key": "Access Key"
         }
