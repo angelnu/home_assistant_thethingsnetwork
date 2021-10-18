@@ -186,8 +186,6 @@ class TTN_client:
             fetch_last = f"{self.get_refresh_period_s()+60}s"
             LOGGER.debug(f"Fetch of ttn data: {fetch_last}")
 
-        map_value_re = re.compile('(\w+):(-?[\.\w]+)')
-
         # Discover entities
         new_entities = {}
         updated_entities = {}
@@ -241,11 +239,12 @@ class TTN_client:
                             pass
 
                 async def process_gps(field_id, value):
-                    position = {}
-                    map_value = map_value_re.findall(value)
-                    for (key,value) in map_value:
-                        position[key] = float(value)
-                    await process(field_id, position)
+                    #position = {}
+                    #map_value = map_value_re.findall(value)
+                    #for (key,value) in map_value:
+                    #    position[key] = float(value)
+                    #await process(field_id, position)
+                    await process(field_id, value)
 
 
                 entity_type = self.get_field_options(device_id, field_id).get(OPTIONS_FIELD_ENTITY_TYPE, None)
