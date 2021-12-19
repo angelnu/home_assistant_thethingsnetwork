@@ -4,7 +4,6 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers import device_registry as dr
 from homeassistant.const import (
     CONTENT_TYPE_JSON,
-    HTTP_NOT_FOUND,
     ATTR_GPS_ACCURACY,
     ATTR_LATITUDE,
     ATTR_LONGITUDE,
@@ -375,7 +374,7 @@ class TTN_client:
             LOGGER.error("Not authorized for Application ID: %s", self.__application_id)
             return None
 
-        if status == HTTP_NOT_FOUND:
+        if status == 404:
             LOGGER.error("Application ID is not available: %s", self.__application_id)
             return None
         
