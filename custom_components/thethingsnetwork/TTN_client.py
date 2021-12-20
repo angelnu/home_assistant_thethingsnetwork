@@ -186,16 +186,23 @@ class TTN_client:
             LOGGER.debug(f"Fetch of ttn data: {fetch_last}")
 
         # Discover entities
-        new_entities = {}
-        updated_entities = {}
-        measurements = await self.storage_api_call(f"?last={fetch_last}")
+        # See API docs at https://www.thethingsindustries.com/docs/reference/api/storage_integration/
+        measurements = await self.storage_api_call(f"?last={fetch_last}&order=received_at")
         async for measurement_raw in measurements:
             #Skip empty lines not containing a result
             if len(measurement_raw) < len("result"):
                 continue
-            
+
+            LOGGER.debug(f"TTN entry: {measurement_raw}")
+
             #Parse line with json dictionary
-            measurement = json.loads(measurement_raw)["result"]
+            measurement_json = json.loads(measurement_raw)
+
+            if "result" not in measurement_json:
+                LOGGER.error(f"TTN entry without result: {measurement_json}")
+                continue
+
+            measurement = measurement_json["result"]
 
             # Get device_id and uplink_message from measurement
             device_id = measurement["end_device_ids"]["device_id"]
@@ -204,7 +211,7 @@ class TTN_client:
             # Skip not decoded measurements
             if not "decoded_payload" in uplink_message:
                 continue
-            
+
             for (field_id, value) in uplink_message["decoded_payload"].items():
 
                 if value is None:
@@ -215,27 +222,22 @@ class TTN_client:
                         # Create
                         if type(value) == bool:
                             # Binary Sensor
-                            new_entities[unique_id] = TtnDataBinarySensor(
+                            TtnDataBinarySensor(
                                 self, device_id, field_id, value
                             )
                         elif type(value) == dict:
                             # GPS
-                            new_entities[unique_id] = TtnDataDeviceTracker(
+                            TtnDataDeviceTracker(
                                 self, device_id, field_id, value
                             )
                         else:
                             # Sensor
-                            new_entities[unique_id] = TtnDataSensor(
+                            TtnDataSensor(
                                 self, device_id, field_id, value
                             )
                     else:
-                        if unique_id not in updated_entities:
-                            # Update value in existing entitity
-                            await self.__entities[unique_id].async_set_state(value)
-                            updated_entities[unique_id] = self.__entities[unique_id]
-                        else:
-                            # Ignore multiple measurements - we use first (=latest)
-                            pass
+                        # Update value in existing entitity
+                        await self.__entities[unique_id].async_set_state(value)
 
                 async def process_gps(field_id, value):
                     #position = {}
@@ -265,8 +267,6 @@ class TTN_client:
                     else:
                         # Regular sensor
                         await process(field_id, value)
-
-        self.__add_entities(new_entities.values())
 
     @staticmethod
     async def __update_listener(hass, entry):
@@ -356,7 +356,7 @@ class TTN_client:
         url = TTN_DATA_STORAGE_URL.format(
             app_id=self.__application_id, hostname=self.__hostname, options=options
         )
-        LOGGER.info(f"URL: {url}")
+        LOGGER.debug(f"URL: {url}")
         headers = {ACCEPT: "text/event-stream", AUTHORIZATION: f"Bearer {self.__access_key}"}
 
         try:
@@ -377,7 +377,7 @@ class TTN_client:
         if status == 404:
             LOGGER.error("Application ID is not available: %s", self.__application_id)
             return None
-        
+
         return response.content
 
 
