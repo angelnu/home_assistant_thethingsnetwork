@@ -176,6 +176,8 @@ class TTN_client:
 
     async def __fetch_data_from_ttn(self):
 
+        new_entities = {}
+
         if self.__first_fetch:
             self.__first_fetch = False
             fetch_last = f"{self.get_first_fetch_last_h()}h"
@@ -222,17 +224,17 @@ class TTN_client:
                         # Create
                         if type(value) == bool:
                             # Binary Sensor
-                            TtnDataBinarySensor(
+                            new_entities[unique_id] = TtnDataBinarySensor(
                                 self, device_id, field_id, value
                             )
                         elif type(value) == dict:
                             # GPS
-                            TtnDataDeviceTracker(
+                            new_entities[unique_id] = TtnDataDeviceTracker(
                                 self, device_id, field_id, value
                             )
                         else:
                             # Sensor
-                            TtnDataSensor(
+                            new_entities[unique_id] = TtnDataSensor(
                                 self, device_id, field_id, value
                             )
                     else:
@@ -267,6 +269,8 @@ class TTN_client:
                     else:
                         # Regular sensor
                         await process(field_id, value)
+
+        self.__add_entities(new_entities.values())
 
     @staticmethod
     async def __update_listener(hass, entry):
