@@ -466,7 +466,7 @@ class TtnDataEntity(Entity):
         return {}
 
     @property
-    def device_state_attributes(self) -> Optional[Dict[str, Any]]:
+    def extra_state_attributes(self) -> Optional[Dict[str, Any]]:
         """Return device specific state attributes.
 
         Implemented by platform classes. Convention for attribute names
