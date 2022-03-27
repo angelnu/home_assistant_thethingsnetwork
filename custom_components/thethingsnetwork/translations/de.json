@@ -1,0 +1,78 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect to The Thinks Network v3 App",
+        "description": "Enter the API hostname, app id and access key for your TTN application.\n You can find your access key in the TTN console -> Applications -> application_id -> API keys",
+        "data": {
+          "hostname": "Hostname",
+          "app_id": "Application ID",
+          "access_key": "Access Key"
+        }
+      }
+    },
+    "abort": {
+      "already_configured": "[%key:common::config_flow::abort::already_configured_device%]"
+    },
+    "error": {
+      "forbidden": "[%key:common::config_flow::error::invalid_auth%]",
+      "device_timeout": "[%key:common::config_flow::error::cannot_connect%]"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Select edit menu",
+        "data": {
+          "selected_menu": "What do you want to edit?"
+        }
+      },
+      "integration_settings": {
+        "title": "Integration settings",
+        "data": {
+          "first_fetch_time": "first fetch time (hours)",
+          "refresh_time": "refresh period (seconds)"
+        }
+      },
+      "device_select": {
+        "title": "Device selection",
+        "data": {
+          "selected_device": "Select a device"
+        }
+      },
+      "device_edit": {
+        "title": "Edit device",
+        "description": "Device: {selected_device}",
+        "data": {
+          "name": "Device friendly name"
+        }
+      },
+
+      "field_select": {
+        "title": "Field selection",
+        "data": {
+          "selected_device": "Select a field"
+        }
+      },
+      "field_edit": {
+        "title": "Edit field",
+        "description": "Field: {selected_field}",
+        "data": {
+          "device_scope": "Scope for field (device or global)",
+          "name": "Field friendly name",
+          "entity_type": "Type",
+          "unit_of_measurement": "Unit of measurement",
+          "device_class": "Device class",
+          "icon": "Icon",
+          "picture": "Picture",
+          "supported_features": "Supported features",
+          "context_recent_time_s": "Context recent time (seconds)"
+        }
+      }
+    },
+    "abort": {
+      "no_devices": "No devices available to configure",
+      "no_fields": "No fields available to configure"
+    }
+  }
+}
