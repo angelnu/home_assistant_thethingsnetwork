@@ -2,7 +2,7 @@
   "config": {
     "step": {
       "user": {
-        "title": "Connect to The Thinks Network v3 App",
+        "title": "Mit The Thinks Network v3 App verbinden",
         "description": "Enter the API hostname, app id and access key for your TTN application.\n You can find your access key in the TTN console -> Applications -> application_id -> API keys",
         "data": {
           "hostname": "Hostname",
@@ -35,13 +35,13 @@
         }
       },
       "device_select": {
-        "title": "Device selection",
+        "title": "Geräte Auswahl",
         "data": {
-          "selected_device": "Select a device"
+          "selected_device": "Gerät auswählen"
         }
       },
       "device_edit": {
-        "title": "Edit device",
+        "title": "Gerät editieren",
         "description": "Device: {selected_device}",
         "data": {
           "name": "Device friendly name"
@@ -49,14 +49,14 @@
       },
 
       "field_select": {
-        "title": "Field selection",
+        "title": "Feld Auswahl",
         "data": {
-          "selected_device": "Select a field"
+          "selected_device": "Feld auswählen"
         }
       },
       "field_edit": {
-        "title": "Edit field",
-        "description": "Field: {selected_field}",
+        "title": "Feld ändern",
+        "description": "Feld: {selected_field}",
         "data": {
           "device_scope": "Scope for field (device or global)",
           "name": "Field friendly name",
