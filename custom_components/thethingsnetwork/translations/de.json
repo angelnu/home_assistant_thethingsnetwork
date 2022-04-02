@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "Mit The Thinks Network v3 App verbinden",
-        "description": "Enter the API hostname, app id and access key for your TTN application.\n You can find your access key in the TTN console -> Applications -> application_id -> API keys",
+        "description": "Geben Sie API hostname, App ID und Access key für Ihre TTN application an.\n Sie können den Access-Key in der TTN console -> Applications -> application_id -> API keys finden",
         "data": {
           "hostname": "Hostname",
           "app_id": "Application ID",
