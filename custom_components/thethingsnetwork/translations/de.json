@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "Mit The Thinks Network v3 App verbinden",
-        "description": "Enter the API hostname, app id and access key for your TTN application.\n You can find your access key in the TTN console -> Applications -> application_id -> API keys",
+        "description": "Geben Sie API hostname, App ID und Access key für Ihre TTN application an.\n Sie können den Access-Key in der TTN console -> Applications -> application_id -> API keys finden",
         "data": {
           "hostname": "Hostname",
           "app_id": "Application ID",
@@ -24,7 +24,7 @@
       "init": {
         "title": "Select edit menu",
         "data": {
-          "selected_menu": "What do you want to edit?"
+          "selected_menu": "Was möchten Sie editieren?"
         }
       },
       "integration_settings": {
@@ -44,7 +44,7 @@
         "title": "Gerät editieren",
         "description": "Device: {selected_device}",
         "data": {
-          "name": "Device friendly name"
+          "name": "Freundlicher Gerätename"
         }
       },
 
@@ -58,21 +58,21 @@
         "title": "Feld ändern",
         "description": "Feld: {selected_field}",
         "data": {
-          "device_scope": "Scope for field (device or global)",
+          "device_scope": "Gültigkeitsbereich (device or global)",
           "name": "Field friendly name",
           "entity_type": "Type",
-          "unit_of_measurement": "Unit of measurement",
+          "unit_of_measurement": "Einheit",
           "device_class": "Device class",
           "icon": "Icon",
-          "picture": "Picture",
+          "picture": "Bild",
           "supported_features": "Supported features",
           "context_recent_time_s": "Context recent time (seconds)"
         }
       }
     },
     "abort": {
-      "no_devices": "No devices available to configure",
-      "no_fields": "No fields available to configure"
+      "no_devices": "Keine Geräte zu konfigurieren",
+      "no_fields": "Keine Felder zu konfigurieren"
     }
   }
 }
