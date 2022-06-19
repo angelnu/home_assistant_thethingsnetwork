@@ -1,5 +1,4 @@
 {
-    "domains": ["sensor"],
     "name": "The Things Network (new version)",
     "homeassistant": "0.106.0",
     "render_readme": true
