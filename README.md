@@ -1,5 +1,7 @@
 # Home Assistant integration for The Things Network
 
+[![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg?style=for-the-badge)](https://github.com/hacs/integration)
+
 This adapter is a replacement for the official [TTN integration](https://www.home-assistant.io/integrations/thethingsnetwork)
 
 ## Differences compared to the official integration
