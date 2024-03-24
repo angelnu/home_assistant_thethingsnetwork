@@ -6,7 +6,7 @@ This adapter is a replacement for the official [TTN integration](https://www.hom
 
 # NOTE OF FUTURE DEPRECATION
 
-The home assistant community has decided to upgrade the core integration for The Things Network so this custome integration will not longer be needed in the future. You can read more in this at https://github.com/home-assistant/core/issues/112491 .
+The home assistant community has decided to upgrade the core integration for The Things Network so this custome integration will not longer be needed in the future. You can read more about this at https://github.com/home-assistant/core/issues/112491 .
 
 Please notice that this work will take multiple PRs as the policy at Home Asssistant is to use small PRs. Therefore the first PR https://github.com/home-assistant/core/pull/113375 only supports sensors and has no options menu to reconfigure the detected sensors. If you depend on this functionality then you are advised to still use this custom integration for now. On the other side, if you do not use them then new core integration has better testing and will fix some the issues reported here.
 
