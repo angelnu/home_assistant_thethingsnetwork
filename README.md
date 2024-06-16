@@ -8,12 +8,12 @@ This adapter is a replacement for the official [TTN integration](https://www.hom
 
 This integration has been merged in HA 2024.6 so it is not longer needed. The [TTN integration documentation](https://www.home-assistant.io/integrations/thethingsnetwork) is updated.
 
-Currently HA does not has all the functionality of this custom integration:
+Currently HA does not have all the functionality of this custom integration:
 - no binary sensors
 - no location sensors
 - no support to bulk rename the sensors in the integration menu
 
-If you relay on this please keep using the custom integration until this features are also available in the official HA integration but please refer from reporting bugs about warnings as these have been fixed in HA and I do not plan to back-port them here.
+If you relay on these please keep using the custom integration until these features are also available in the official HA integration but please acoid reporting bugs about warnings as these have been fixed in HA and I do not plan to back-port them here.
 
 As soon all features have been merged at https://github.com/home-assistant/core/issues/112491 i will archieve this repository.
 
